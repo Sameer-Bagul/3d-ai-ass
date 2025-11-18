@@ -1,42 +1,32 @@
-import React, { useState, useCallback } from 'react';
+import { useState } from 'react';
 import AvatarCanvas from './components/AvatarCanvas';
-import Controls from './components/Controls';
-import DebugPanel from './components/DebugPanel';
-import AvatarController from './components/AvatarController';
-import ViewModeController from './lib/viewModes';
+import ControlPanel from './components/ControlPanel';
 
 function App() {
-  const [avatarController, setAvatarController] = useState<AvatarController | null>(null);
-  const [viewModeController, setViewModeController] = useState<ViewModeController | null>(null);
-  const [debugInfo, setDebugInfo] = useState({
-    status: 'Initializing...',
-    phonemesActive: false,
-    animationTime: 0
-  });
-
-  const handleAvatarReady = useCallback((controller: AvatarController, viewController: ViewModeController) => {
-    console.log('✅ Avatar controller ready');
-    setAvatarController(controller);
-    setViewModeController(viewController);
-    setDebugInfo(prev => ({ ...prev, status: 'Avatar loaded' }));
-  }, []);
-
-  const updateDebugInfo = useCallback((info: any) => {
-    setDebugInfo(prev => ({ ...prev, ...info }));
-  }, []);
+  const [loaded, setLoaded] = useState(false);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      <AvatarCanvas 
-        onAvatarReady={handleAvatarReady}
-        onDebugUpdate={updateDebugInfo}
-      />
-      <Controls 
-        avatarController={avatarController}
-        viewModeController={viewModeController}
-        onDebugUpdate={updateDebugInfo}
-      />
-      <DebugPanel info={debugInfo} />
+    <div style={{ width: '100vw', height: '100vh', background: '#1a1a2e', position: 'relative' }}>
+      <AvatarCanvas onLoad={() => setLoaded(true)} />
+      
+      {loaded && <ControlPanel />}
+      
+      {!loaded && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#fff',
+          fontSize: '24px',
+          textAlign: 'center',
+        }}>
+          <div>🎭 Loading Avatar...</div>
+          <div style={{ fontSize: '14px', marginTop: '10px', opacity: 0.7 }}>
+            Please wait
+          </div>
+        </div>
+      )}
     </div>
   );
 }
