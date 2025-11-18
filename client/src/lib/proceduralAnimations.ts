@@ -21,7 +21,7 @@ export class ProceduralAnimations {
         if (!humanoid) return;
 
         const breathFrequency = 0.3;
-        const breathAmount = Math.sin(time * Math.PI * 2 * breathFrequency) * 0.02;
+        const breathAmount = Math.sin(time * Math.PI * 2 * breathFrequency) * 0.05;
 
         const spine = humanoid.getNormalizedBoneNode('spine');
         if (spine) {
@@ -48,7 +48,7 @@ export class ProceduralAnimations {
         if (!humanoid) return;
 
         const swayFrequency = 0.15;
-        const swayAmount = Math.sin(time * Math.PI * 2 * swayFrequency) * 0.01;
+        const swayAmount = Math.sin(time * Math.PI * 2 * swayFrequency) * 0.03;
 
         const hips = humanoid.getNormalizedBoneNode('hips');
         if (hips) {
@@ -70,7 +70,7 @@ export class ProceduralAnimations {
         if (!humanoid) return;
 
         const bobFrequency = 0.2;
-        const bobAmount = Math.sin(time * Math.PI * 2 * bobFrequency) * 0.015;
+        const bobAmount = Math.sin(time * Math.PI * 2 * bobFrequency) * 0.04;
 
         const neck = humanoid.getNormalizedBoneNode('neck');
         if (neck) {
@@ -79,7 +79,7 @@ export class ProceduralAnimations {
 
         const head = humanoid.getNormalizedBoneNode('head');
         if (head) {
-          head.rotation.y = Math.sin(time * Math.PI * 2 * bobFrequency * 0.5) * 0.02;
+          head.rotation.y = Math.sin(time * Math.PI * 2 * bobFrequency * 0.5) * 0.05;
         }
       }
     };

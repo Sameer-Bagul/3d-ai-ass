@@ -1,5 +1,4 @@
 import { VRM } from '@pixiv/three-vrm';
-import * as THREE from 'three';
 import { ProceduralAnimation } from '../types/animation';
 
 export class ActionAnimations {
@@ -20,7 +19,6 @@ export class ActionAnimations {
         const elapsed = time - startTime;
         const progress = Math.min(elapsed / waveDuration, 1);
 
-        const shoulder = humanoid.getNormalizedBoneNode(hand === 'right' ? 'rightShoulder' : 'leftShoulder');
         const upperArm = humanoid.getNormalizedBoneNode(hand === 'right' ? 'rightUpperArm' : 'leftUpperArm');
         const lowerArm = humanoid.getNormalizedBoneNode(hand === 'right' ? 'rightLowerArm' : 'leftLowerArm');
         const handNode = humanoid.getNormalizedBoneNode(hand === 'right' ? 'rightHand' : 'leftHand');
@@ -43,6 +41,7 @@ export class ActionAnimations {
       },
       onStart: (_vrm: VRM) => {
         startTime = performance.now() / 1000;
+        console.log(`👋 Starting wave animation (${hand} hand)`);
       }
     };
   }

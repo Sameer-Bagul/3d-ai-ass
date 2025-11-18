@@ -4,12 +4,10 @@ import { AnimationEngine } from '../lib/animationEngine';
 import { AnimationCommand, Emotion, ActionType, ViewMode } from '../types/animation';
 
 export class AvatarController {
-  private vrm: VRM;
   private animationEngine: AnimationEngine;
   private clock: THREE.Clock;
 
   constructor(vrm: VRM, camera?: THREE.Camera, controls?: any) {
-    this.vrm = vrm;
     this.clock = new THREE.Clock();
     this.animationEngine = new AnimationEngine(vrm, camera, controls);
 

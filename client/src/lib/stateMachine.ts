@@ -87,6 +87,8 @@ export class AnimationStateMachine {
   update(deltaTime: number): void {
     this.globalTime += deltaTime;
 
+    this.resetBonesToRestPose();
+
     const layersToRemove: AnimationLayer[] = [];
 
     for (const [layer, animation] of this.state.activeAnimations.entries()) {
@@ -111,6 +113,26 @@ export class AnimationStateMachine {
     }
 
     layersToRemove.forEach(layer => this.removeAnimation(layer));
+  }
+
+  private resetBonesToRestPose(): void {
+    const humanoid = this.vrm.humanoid;
+    if (!humanoid) return;
+
+    const boneNames = [
+      'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
+      'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+      'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+      'leftUpperLeg', 'leftLowerLeg', 'leftFoot',
+      'rightUpperLeg', 'rightLowerLeg', 'rightFoot'
+    ];
+
+    boneNames.forEach(boneName => {
+      const bone = humanoid.getNormalizedBoneNode(boneName as any);
+      if (bone) {
+        bone.rotation.set(0, 0, 0);
+      }
+    });
   }
 
   setAction(action: ActionType | null): void {
