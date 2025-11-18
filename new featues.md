@@ -1,0 +1,1 @@
+so here in this app we have the VRM streching both hands like `T` lets give the model a better standing and talking animation 
