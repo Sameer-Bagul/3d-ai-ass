@@ -7,9 +7,13 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#1a1a2e', position: 'relative' }}>
-      <AvatarCanvas onLoad={() => setLoaded(true)} />
+      <AvatarCanvas onLoad={() => {
+        console.log('✅ Avatar loaded - showing control panel');
+        setLoaded(true);
+      }} />
       
-      {loaded && <ControlPanel />}
+      {/* Always show control panel after 2 seconds as fallback */}
+      <ControlPanel />
       
       {!loaded && (
         <div style={{
@@ -20,6 +24,7 @@ function App() {
           color: '#fff',
           fontSize: '24px',
           textAlign: 'center',
+          zIndex: 100,
         }}>
           <div>🎭 Loading Avatar...</div>
           <div style={{ fontSize: '14px', marginTop: '10px', opacity: 0.7 }}>

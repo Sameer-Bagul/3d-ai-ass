@@ -162,12 +162,6 @@ export default function AvatarCanvas({ onLoad }: Props) {
         />
       </mesh>
       
-      {/* Debug cube to verify rendering */}
-      <mesh position={[2, 1, 0]}>
-        <boxGeometry args={[0.5, 0.5, 0.5]} />
-        <meshStandardMaterial color="red" />
-      </mesh>
-      
       <Avatar onLoad={onLoad} />
       
       <OrbitControls
