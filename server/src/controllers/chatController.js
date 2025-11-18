@@ -1,5 +1,6 @@
 const ollamaService = require('../services/ollamaService');
 const animationPlanner = require('../services/animationPlanner');
+const ttsService = require('../services/ttsService');
 
 exports.handleChat = async (req, res) => {
   try {
@@ -19,9 +20,20 @@ exports.handleChat = async (req, res) => {
       style: options.style || 'casual'
     });
     
+    // Generate phonemes for web speech API
+    const duration = llmResponse.text.length * 0.08 + 0.5;
+    const phonemes = ttsService.generateDummyPhonemes(llmResponse.text, duration);
+    
     res.json({
       reply: llmResponse.text,
       animationPlan: animationPlan,
+      tts: {
+        mode: 'web-speech',
+        text: llmResponse.text,
+        phonemes: phonemes,
+        duration: duration,
+        useClientTTS: true
+      },
       timestamp: Date.now()
     });
   } catch (error) {

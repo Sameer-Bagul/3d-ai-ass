@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import AvatarController from './AvatarController';
-import { playAudio, stopAudio } from '../lib/audioPlayer';
+import { webSpeechTTS, isSupported, getAvailableVoices } from '../lib/webSpeechTTS';
 
 interface ControlsProps {
   avatarController: AvatarController | null;
@@ -13,6 +13,33 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
   const [message, setMessage] = useState('Hello! How are you today?');
   const [status, setStatus] = useState('Ready');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [ttsSupported, setTtsSupported] = useState(false);
+  const [voiceCount, setVoiceCount] = useState(0);
+
+  useEffect(() => {
+    const supported = isSupported();
+    setTtsSupported(supported);
+    
+    if (supported) {
+      setTimeout(() => {
+        const voices = getAvailableVoices();
+        setVoiceCount(voices.length);
+        console.log('🎤 Web Speech API supported. Available voices:', voices.length);
+        console.log('Voices:', voices.map(v => `${v.name} (${v.lang})`));
+      }, 100);
+      
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          const voices = getAvailableVoices();
+          setVoiceCount(voices.length);
+          console.log('🎤 Voices loaded:', voices.length);
+        };
+      }
+    } else {
+      console.error('❌ Web Speech API not supported in this browser');
+      setStatus('Web Speech API not supported');
+    }
+  }, []);
 
   const handleChat = async () => {
     if (!avatarController || !message.trim()) {
@@ -24,6 +51,7 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
     setStatus('Sending message...');
 
     try {
+      console.log(`📤 Sending chat to ${API_URL}/api/chat`);
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,25 +62,62 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
         })
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       
       setStatus(`Reply: ${data.reply}`);
       console.log('💬 Chat response:', data);
 
+      if (data.tts && data.tts.useClientTTS) {
+        console.log('🔊 Using Web Speech TTS for:', data.tts.text);
+        
+        if (data.tts.phonemes && data.tts.phonemes.length > 0) {
+          avatarController.applyPhonemeTimeline(data.tts.phonemes);
+          onDebugUpdate?.({ 
+            phonemesActive: true,
+            status: `Animating with ${data.tts.phonemes.length} phonemes`
+          });
+        }
+
+        try {
+          console.log('🗣️ Starting speech...');
+          await webSpeechTTS.speak(data.tts.text, {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0
+          });
+          console.log('✅ Speech completed');
+          setStatus('Speech completed');
+        } catch (error) {
+          console.error('❌ Speech error:', error);
+          setStatus(`Speech error: ${error}`);
+        }
+      } else {
+        console.warn('⚠️ No TTS data in response');
+      }
+
       if (data.animationPlan) {
         onDebugUpdate?.({ status: 'Animation plan received' });
       }
     } catch (error) {
-      console.error('Chat error:', error);
-      setStatus('Error: Could not connect to server');
+      console.error('❌ Chat error:', error);
+      setStatus(`Error: ${error}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleTTS = async () => {
-    if (!avatarController || !message.trim()) {
+    if (!message.trim()) {
       setStatus('Please enter text for TTS');
+      return;
+    }
+
+    if (!ttsSupported) {
+      alert('Web Speech API not supported in this browser!');
       return;
     }
 
@@ -60,35 +125,44 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
     setStatus('Generating speech...');
 
     try {
-      const response = await fetch(`${API_URL}/api/tts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: message,
-          voice: 'default',
-          format: 'wav'
-        })
-      });
-
-      const data = await response.json();
+      console.log('🎤 Starting direct TTS');
+      console.log('📝 Text:', message);
       
-      console.log('🔊 TTS response:', data);
+      const phonemes = webSpeechTTS.generateEstimatedPhonemes(message);
+      console.log('📊 Estimated phonemes:', phonemes.length);
       
-      if (data.phonemes && data.phonemes.length > 0) {
-        avatarController.applyPhonemeTimeline(data.phonemes);
-        
-        setStatus(`Playing ${data.phonemes.length} phonemes`);
+      if (avatarController && phonemes && phonemes.length > 0) {
+        avatarController.applyPhonemeTimeline(phonemes);
         onDebugUpdate?.({ 
           phonemesActive: true,
-          status: `Animating with ${data.phonemes.length} phonemes`
+          status: `Animating with ${phonemes.length} phonemes`
         });
       }
+
+      console.log('🗣️ Calling speak...');
+      await webSpeechTTS.speak(message, {
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0
+      });
+      
+      console.log('✅ Speech completed');
+      setStatus('Speech completed');
     } catch (error) {
-      console.error('TTS error:', error);
-      setStatus('Error: Could not generate speech');
+      console.error('❌ TTS error:', error);
+      setStatus(`Error: ${error}`);
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSimpleTest = () => {
+    console.log('🧪 Simple TTS test');
+    const utterance = new SpeechSynthesisUtterance('Testing one two three');
+    utterance.onstart = () => console.log('▶️ Speech started');
+    utterance.onend = () => console.log('⏹️ Speech ended');
+    utterance.onerror = (e) => console.error('❌ Speech error:', e);
+    window.speechSynthesis.speak(utterance);
   };
 
   const handleTestAnimation = () => {
@@ -132,8 +206,12 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
         💬 Send Chat
       </button>
 
-      <button onClick={handleTTS} disabled={isProcessing || !avatarController}>
+      <button onClick={handleTTS} disabled={isProcessing || !ttsSupported}>
         🔊 Generate TTS & Animate
+      </button>
+
+      <button onClick={handleSimpleTest} disabled={!ttsSupported}>
+        🧪 Simple TTS Test
       </button>
 
       <button onClick={handleTestAnimation} disabled={isProcessing || !avatarController}>
@@ -155,7 +233,8 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
         fontSize: '11px',
         opacity: 0.7
       }}>
-        Server: {API_URL}
+        <div>Server: {API_URL}</div>
+        <div>TTS: {ttsSupported ? `✅ Supported (${voiceCount} voices)` : '❌ Not Supported'}</div>
       </div>
     </div>
   );
