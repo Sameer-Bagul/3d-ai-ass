@@ -1,0 +1,23 @@
+{
+  "name": "3d-ai-avatar-server",
+  "version": "0.1.0",
+  "description": "3D AI Avatar Platform - Server",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo 'Tests not implemented yet'",
+    "fine-tune": "bash scripts/fine_tune.sh"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "ws": "^8.14.0",
+    "multer": "^1.4.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

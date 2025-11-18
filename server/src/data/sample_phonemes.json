@@ -1,0 +1,10 @@
+[
+  { "phoneme": "HH", "start": 0.00, "end": 0.08 },
+  { "phoneme": "AH", "start": 0.08, "end": 0.18 },
+  { "phoneme": "L", "start": 0.18, "end": 0.25 },
+  { "phoneme": "OW", "start": 0.25, "end": 0.40 },
+  { "phoneme": "W", "start": 0.50, "end": 0.58 },
+  { "phoneme": "ER", "start": 0.58, "end": 0.70 },
+  { "phoneme": "L", "start": 0.70, "end": 0.78 },
+  { "phoneme": "D", "start": 0.78, "end": 0.85 }
+]

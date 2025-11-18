@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  server:
+    build: ./server
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - OLLAMA_URL=http://ollama:11434
+      - NODE_ENV=production
+    volumes:
+      - ./server/media:/app/media
+    depends_on:
+      - ollama
+    networks:
+      - avatar-network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "5000:80"
+    depends_on:
+      - server
+    networks:
+      - avatar-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - avatar-network
+
+volumes:
+  ollama-data:
+
+networks:
+  avatar-network:
+    driver: bridge
