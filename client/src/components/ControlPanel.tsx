@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 
 interface AvatarAPI {
-  playAnimation: (name: string, options?: any) => any;
-  loadAnimation: (name: string) => Promise<any>;
-  loadAllAnimations: (onProgress?: (loaded: number, total: number) => void) => Promise<void>;
-  stopAnimation: (fadeDuration?: number) => void;
+  playAction: (action: string) => void;
   setEmotion: (emotion: string, intensity?: number) => void;
-  setViewMode: (mode: string, animate?: boolean) => void;
-  cycleViewMode: () => string;
+  setViewMode: (mode: string) => void;
+  lookAtCamera: () => void;
+  reset: () => void;
   getStatus: () => any;
+  executeCommand: (command: any) => void;
 }
 
 declare global {
@@ -17,47 +16,88 @@ declare global {
   }
 }
 
+const AVAILABLE_ACTIONS = [
+  { id: 'wave', label: '👋 Wave', emoji: '👋' },
+  { id: 'point', label: '👉 Point', emoji: '👉' },
+  { id: 'nod', label: '👍 Nod', emoji: '👍' },
+  { id: 'shake_head', label: '👎 Shake Head', emoji: '👎' },
+  { id: 'bow', label: '🙇 Bow', emoji: '🙇' },
+  { id: 'thumbs_up', label: '👍 Thumbs Up', emoji: '👍' },
+  { id: 'dance', label: '💃 Dance', emoji: '💃' },
+  { id: 'jump', label: '🦘 Jump', emoji: '🦘' },
+  { id: 'celebrate', label: '🎉 Celebrate', emoji: '🎉' },
+  { id: 'think', label: '🤔 Think', emoji: '🤔' },
+  { id: 'shrug', label: '🤷 Shrug', emoji: '🤷' },
+];
+
+const AVAILABLE_EMOTIONS = [
+  { id: 'neutral', label: '😐 Neutral', color: '#94a3b8' },
+  { id: 'happy', label: '😊 Happy', color: '#fbbf24' },
+  { id: 'sad', label: '😢 Sad', color: '#60a5fa' },
+  { id: 'angry', label: '😠 Angry', color: '#f87171' },
+  { id: 'cute', label: '🥰 Cute', color: '#f472b6' },
+  { id: 'excited', label: '🤩 Excited', color: '#a78bfa' },
+  { id: 'nervous', label: '😰 Nervous', color: '#fde047' },
+  { id: 'surprised', label: '😲 Surprised', color: '#34d399' },
+  { id: 'confused', label: '😕 Confused', color: '#fb923c' },
+];
+
+const VIEW_MODES = [
+  { id: 'full-body', label: '🧍 Full Body' },
+  { id: 'half-body', label: '🙋 Half Body' },
+  { id: 'head-only', label: '🗣️ Head Only' },
+  { id: 'cinematic', label: '🎬 Cinematic' },
+];
+
 export default function ControlPanel() {
   const [status, setStatus] = useState<any>(null);
-  const [loadingProgress, setLoadingProgress] = useState<{ loaded: number; total: number } | null>(null);
-  const [animationsEnabled, setAnimationsEnabled] = useState(false);
+  const [selectedEmotion, setSelectedEmotion] = useState('neutral');
+  const [emotionIntensity, setEmotionIntensity] = useState(0.8);
 
   useEffect(() => {
     const interval = setInterval(() => {
       if (window.avatarAPI) {
-        setStatus(window.avatarAPI.getStatus());
+        const currentStatus = window.avatarAPI.getStatus();
+        setStatus(currentStatus);
+        if (currentStatus.currentEmotion) {
+          setSelectedEmotion(currentStatus.currentEmotion);
+        }
       }
     }, 500);
 
     return () => clearInterval(interval);
   }, []);
 
-  const handleEnableAnimations = async () => {
-    if (window.avatarAPI && !animationsEnabled) {
-      setAnimationsEnabled(true);
-      // Load just a few essential animations first
-      const essential = ['idle', 'waving', 'talking'];
-      for (const name of essential) {
-        try {
-          await window.avatarAPI.loadAnimation(name);
-        } catch (error) {
-          console.warn(`Failed to load ${name}`);
-        }
-      }
-      
-      // Play idle
-      if (window.avatarAPI.getStatus().loadedAnimations.includes('idle')) {
-        window.avatarAPI.playAnimation('idle', { loop: true });
-      }
+  const handlePlayAction = (action: string) => {
+    if (window.avatarAPI) {
+      window.avatarAPI.playAction(action);
     }
   };
 
-  const handleLoadAll = async () => {
+  const handleSetEmotion = (emotion: string) => {
+    setSelectedEmotion(emotion);
     if (window.avatarAPI) {
-      await window.avatarAPI.loadAllAnimations((loaded, total) => {
-        setLoadingProgress({ loaded, total });
-      });
-      setLoadingProgress(null);
+      window.avatarAPI.setEmotion(emotion, emotionIntensity);
+    }
+  };
+
+  const handleSetViewMode = (mode: string) => {
+    if (window.avatarAPI) {
+      window.avatarAPI.setViewMode(mode);
+    }
+  };
+
+  const handleLookAtCamera = () => {
+    if (window.avatarAPI) {
+      window.avatarAPI.lookAtCamera();
+    }
+  };
+
+  const handleReset = () => {
+    if (window.avatarAPI) {
+      window.avatarAPI.reset();
+      setSelectedEmotion('neutral');
+      setEmotionIntensity(0.8);
     }
   };
 
@@ -72,92 +112,94 @@ export default function ControlPanel() {
 
   return (
     <div style={styles.panel}>
-      <h3 style={styles.title}>🎭 Avatar Control Panel</h3>
+      <h3 style={styles.title}>🎭 Procedural Avatar Control</h3>
 
       {/* Status */}
       <div style={styles.section}>
         <h4 style={styles.sectionTitle}>📊 Status</h4>
         {status && (
           <div style={styles.info}>
-            <div>Animation: <strong>{status.currentAnimation || 'None'}</strong></div>
+            <div>Action: <strong>{status.currentAction || 'None'}</strong></div>
             <div>Emotion: <strong>{status.currentEmotion || 'neutral'}</strong></div>
             <div>View: <strong>{status.currentViewMode || 'full-body'}</strong></div>
-            <div>Loaded: <strong>{status.loadedAnimations?.length || 0}</strong> animations</div>
+            <div>Active: <strong>{status.activeAnimations?.length || 0}</strong> animations</div>
           </div>
         )}
       </div>
 
-      {/* Animations */}
+      {/* Actions */}
       <div style={styles.section}>
-        <h4 style={styles.sectionTitle}>🎬 Animations</h4>
-        
-        {!animationsEnabled && (
-          <button onClick={handleEnableAnimations} style={styles.buttonPrimary}>
-            ▶️ Enable Animations
-          </button>
-        )}
-        
-        {animationsEnabled && (
-          <>
-            {loadingProgress && (
-              <div style={styles.progress}>
-                Loading: {loadingProgress.loaded}/{loadingProgress.total}
-              </div>
-            )}
-            <div style={styles.buttonGrid}>
-              {status?.loadedAnimations?.map((name: string) => (
-                <button
-                  key={name}
-                  onClick={() => window.avatarAPI?.playAnimation(name)}
-                  style={{
-                    ...styles.button,
-                    ...(status.currentAnimation === name ? styles.buttonActive : {})
-                  }}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-            <button onClick={handleLoadAll} style={styles.buttonPrimary}>
-              Load All Animations
+        <h4 style={styles.sectionTitle}>🎬 Actions & Gestures</h4>
+        <div style={styles.buttonGrid}>
+          {AVAILABLE_ACTIONS.map(action => (
+            <button
+              key={action.id}
+              onClick={() => handlePlayAction(action.id)}
+              style={{
+                ...styles.button,
+                ...(status?.currentAction === action.id ? styles.buttonActive : {})
+              }}
+              title={action.label}
+            >
+              {action.emoji} {action.id.replace('_', ' ')}
             </button>
-          </>
-        )}
+          ))}
+        </div>
       </div>
 
       {/* Emotions */}
       <div style={styles.section}>
         <h4 style={styles.sectionTitle}>😊 Emotions</h4>
         <div style={styles.buttonGrid}>
-          {['neutral', 'joy', 'sad', 'angry', 'surprised', 'relaxed'].map((emotion) => (
+          {AVAILABLE_EMOTIONS.map(emotion => (
             <button
-              key={emotion}
-              onClick={() => window.avatarAPI?.setEmotion(emotion, 1.0)}
+              key={emotion.id}
+              onClick={() => handleSetEmotion(emotion.id)}
               style={{
-                ...styles.button,
-                ...(status?.currentEmotion === emotion ? styles.buttonActive : {})
+                ...styles.emotionButton,
+                backgroundColor: selectedEmotion === emotion.id ? emotion.color : '#2d3748',
+                borderColor: emotion.color,
               }}
+              title={emotion.label}
             >
-              {emotion}
+              {emotion.label}
             </button>
           ))}
+        </div>
+        <div style={styles.sliderContainer}>
+          <label style={styles.sliderLabel}>Intensity: {(emotionIntensity * 100).toFixed(0)}%</label>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.1"
+            value={emotionIntensity}
+            onChange={(e) => {
+              const value = parseFloat(e.target.value);
+              setEmotionIntensity(value);
+              if (window.avatarAPI) {
+                window.avatarAPI.setEmotion(selectedEmotion, value);
+              }
+            }}
+            style={styles.slider}
+          />
         </div>
       </div>
 
       {/* View Modes */}
       <div style={styles.section}>
-        <h4 style={styles.sectionTitle}>📷 View Modes</h4>
+        <h4 style={styles.sectionTitle}>📷 Camera Views</h4>
         <div style={styles.buttonGrid}>
-          {['full-body', 'half-body', 'head-only'].map((mode) => (
+          {VIEW_MODES.map(mode => (
             <button
-              key={mode}
-              onClick={() => window.avatarAPI?.setViewMode(mode, true)}
+              key={mode.id}
+              onClick={() => handleSetViewMode(mode.id)}
               style={{
                 ...styles.button,
-                ...(status?.currentViewMode === mode ? styles.buttonActive : {})
+                ...(status?.currentViewMode === mode.id ? styles.buttonActive : {})
               }}
             >
-              {mode}
+              {mode.label}
             </button>
           ))}
         </div>
@@ -166,98 +208,167 @@ export default function ControlPanel() {
       {/* Quick Actions */}
       <div style={styles.section}>
         <h4 style={styles.sectionTitle}>⚡ Quick Actions</h4>
-        <div style={styles.buttonGrid}>
-          <button onClick={() => window.avatarAPI?.stopAnimation(0.5)} style={styles.button}>
-            Stop Animation
+        <div style={styles.buttonRow}>
+          <button onClick={handleLookAtCamera} style={styles.buttonSecondary}>
+            👁️ Look at Camera
           </button>
-          <button onClick={() => window.avatarAPI?.cycleViewMode()} style={styles.button}>
-            Cycle View
+          <button onClick={handleReset} style={styles.buttonDanger}>
+            🔄 Reset
           </button>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div style={styles.section}>
+        <div style={styles.infoText}>
+          ✨ <strong>Procedural Animation System</strong><br />
+          No FBX files required! All animations are generated in real-time using code.
         </div>
       </div>
     </div>
   );
 }
 
-const styles = {
+const styles: Record<string, React.CSSProperties> = {
   panel: {
-    position: 'absolute' as const,
-    top: '20px',
-    right: '20px',
-    backgroundColor: 'rgba(15, 15, 30, 0.95)',
-    color: '#fff',
-    padding: '20px',
-    borderRadius: '12px',
-    maxWidth: '320px',
+    position: 'fixed',
+    top: 20,
+    right: 20,
+    width: 320,
     maxHeight: 'calc(100vh - 40px)',
-    overflowY: 'auto' as const,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-    backdropFilter: 'blur(10px)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
+    padding: 16,
+    color: '#fff',
+    fontFamily: 'system-ui, -apple-system, sans-serif',
+    fontSize: 14,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+    zIndex: 1000,
+    overflowY: 'auto',
   },
   title: {
     margin: '0 0 16px 0',
-    fontSize: '18px',
-    fontWeight: 'bold' as const,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#a78bfa',
   },
   section: {
-    marginBottom: '20px',
-    paddingBottom: '20px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottom: '1px solid #2d3748',
   },
   sectionTitle: {
     margin: '0 0 12px 0',
-    fontSize: '14px',
-    color: '#94a3b8',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#cbd5e1',
   },
   info: {
-    fontSize: '13px',
+    fontSize: 12,
     lineHeight: '1.8',
-    color: '#cbd5e1',
+    color: '#94a3b8',
+  },
+  loading: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 13,
   },
   buttonGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '8px',
-    marginBottom: '8px',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 8,
+  },
+  buttonRow: {
+    display: 'flex',
+    gap: 8,
   },
   button: {
     padding: '8px 12px',
-    backgroundColor: 'rgba(100, 116, 139, 0.3)',
-    border: '1px solid rgba(148, 163, 184, 0.3)',
-    borderRadius: '6px',
-    color: '#e2e8f0',
+    backgroundColor: '#2d3748',
+    border: '1px solid #4a5568',
+    borderRadius: 6,
+    color: '#fff',
     cursor: 'pointer',
-    fontSize: '12px',
+    fontSize: 12,
+    fontWeight: '500',
     transition: 'all 0.2s',
+    textAlign: 'left',
+  },
+  emotionButton: {
+    padding: '8px 12px',
+    border: '2px solid',
+    borderRadius: 6,
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: '500',
+    transition: 'all 0.2s',
+    textAlign: 'center',
   },
   buttonActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.5)',
-    borderColor: '#3b82f6',
-    color: '#fff',
+    backgroundColor: '#a78bfa',
+    borderColor: '#c4b5fd',
+    fontWeight: '600',
   },
   buttonPrimary: {
-    width: '100%',
-    padding: '10px',
-    backgroundColor: 'rgba(59, 130, 246, 0.3)',
-    border: '1px solid #3b82f6',
-    borderRadius: '6px',
+    padding: '10px 16px',
+    backgroundColor: '#a78bfa',
+    border: 'none',
+    borderRadius: 6,
     color: '#fff',
     cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 'bold' as const,
+    fontSize: 13,
+    fontWeight: '600',
+    width: '100%',
+    transition: 'all 0.2s',
   },
-  loading: {
-    fontSize: '13px',
+  buttonSecondary: {
+    padding: '8px 12px',
+    backgroundColor: '#3b82f6',
+    border: 'none',
+    borderRadius: 6,
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+    transition: 'all 0.2s',
+  },
+  buttonDanger: {
+    padding: '8px 12px',
+    backgroundColor: '#ef4444',
+    border: 'none',
+    borderRadius: 6,
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+    transition: 'all 0.2s',
+  },
+  sliderContainer: {
+    marginTop: 12,
+  },
+  sliderLabel: {
+    display: 'block',
+    marginBottom: 8,
+    fontSize: 12,
+    color: '#cbd5e1',
+  },
+  slider: {
+    width: '100%',
+    height: 6,
+    borderRadius: 3,
+    outline: 'none',
+    background: '#4a5568',
+  },
+  infoText: {
+    fontSize: 11,
+    lineHeight: '1.6',
     color: '#94a3b8',
-    fontStyle: 'italic' as const,
-  },
-  progress: {
-    fontSize: '12px',
-    color: '#60a5fa',
-    marginBottom: '8px',
-    fontWeight: 'bold' as const,
+    padding: 8,
+    backgroundColor: '#0f172a',
+    borderRadius: 6,
   },
 };

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AnimationCommand",
+  "description": "Schema for procedural animation commands",
+  "type": "object",
+  "properties": {
+    "emotion": {
+      "type": "string",
+      "enum": ["neutral", "happy", "sad", "angry", "cute", "excited", "nervous", "surprised", "confused"],
+      "description": "The emotion to display"
+    },
+    "action": {
+      "type": ["string", "null"],
+      "enum": ["idle", "wave", "point", "nod", "shake_head", "bow", "thumbs_up", "dance", "jump", "celebrate", "think", "shrug", null],
+      "description": "The action/gesture to perform"
+    },
+    "duration": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 10,
+      "description": "Duration of the action in seconds"
+    },
+    "intensity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Intensity of the emotion (0-1)"
+    },
+    "lookAtUser": {
+      "type": "boolean",
+      "description": "Whether the avatar should look at the camera"
+    },
+    "viewMode": {
+      "type": "string",
+      "enum": ["full-body", "half-body", "head-only", "cinematic"],
+      "description": "Camera view mode"
+    },
+    "interrupt": {
+      "type": "boolean",
+      "description": "Whether to interrupt current animations"
+    }
+  },
+  "additionalProperties": false
+}

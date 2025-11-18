@@ -1,71 +1,70 @@
-const AVAILABLE_ANIMATIONS = [
-  'idle',
-  'breathing_idle',
-  'happy_idle',
-  'backflip',
-  'blow_a_kiss',
-  'catwalk_walk',
-  'cocky_head_turn',
-  'dancing_twerk',
-  'jumping_down',
-  'pointing_gesture',
-  'praying',
-  'quick_formal_bow',
-  'standing_thumbs_up',
-  'victory',
-  'waving',
-  'ass_bumb_female_standing_pose',
-  'female_crouch_pose',
-  'female_laying_pose',
-  'female_standing_pose_bold'
+const AVAILABLE_ACTIONS = [
+  'wave',
+  'point',
+  'nod',
+  'shake_head',
+  'bow',
+  'thumbs_up',
+  'dance',
+  'jump',
+  'celebrate',
+  'think',
+  'shrug'
 ];
 
-const AVAILABLE_EMOTIONS = ['happy', 'sad', 'angry', 'surprised', 'confused', 'neutral'];
-const VIEW_MODES = ['full-body', 'half-body', 'head-only'];
+const AVAILABLE_EMOTIONS = ['neutral', 'happy', 'sad', 'angry', 'cute', 'excited', 'nervous', 'surprised', 'confused'];
+const VIEW_MODES = ['full-body', 'half-body', 'head-only', 'cinematic'];
 
 function buildAnimationPrompt(userMessage, agentResponse) {
-  const availableAnimsStr = AVAILABLE_ANIMATIONS.map(a => `"${a}"`).join(', ');
+  const availableActionsStr = AVAILABLE_ACTIONS.map(a => `"${a}"`).join(', ');
+  const availableEmotionsStr = AVAILABLE_EMOTIONS.map(e => `"${e}"`).join(', ');
   
-  return `You are an AI animation director. Based on the conversation, you MUST output ONLY valid JSON with animation and emotion instructions.
+  return `You are an AI animation director. Based on the conversation, you MUST output ONLY valid JSON with procedural animation commands.
 
 STRICT RULES:
 1. Output ONLY the JSON object, no other text
-2. Use ONLY animations from this exact list: ${availableAnimsStr}
-3. Use ONLY emotions from: happy, sad, angry, surprised, confused, neutral
-4. Use ONLY viewMode from: full-body, half-body, head-only
+2. Use ONLY actions from this exact list: ${availableActionsStr} or null
+3. Use ONLY emotions from: ${availableEmotionsStr}
+4. Use ONLY viewMode from: full-body, half-body, head-only, cinematic
 
 User said: "${userMessage}"
 Your response: "${agentResponse}"
 
 Based on your response, choose:
-- emotion: How should the avatar feel? (happy/sad/angry/surprised/confused/neutral)
-- animation: What should the avatar do? Choose from available animations or use null for none
-- intensity: Emotion strength (0.0-1.0)
-- viewMode: Camera view (full-body for full actions, half-body for gestures, head-only for facial expressions)
-- interrupt: Should this interrupt current animation? (true/false)
+- emotion: Avatar's emotional state (neutral/happy/sad/angry/cute/excited/nervous/surprised/confused)
+- action: Procedural gesture/action or null for emotion-only (wave/point/nod/shake_head/bow/thumbs_up/dance/jump/celebrate/think/shrug)
+- intensity: Emotion strength 0.0-1.0
+- duration: Action duration in seconds (optional, 1.0-5.0)
+- lookAtUser: Should avatar look at camera? (true/false)
+- viewMode: Camera view (full-body/half-body/head-only/cinematic)
+- interrupt: Interrupt current animation? (true/false)
 
 Output ONLY this JSON structure:
 {
   "emotion": "happy",
-  "animation": "waving",
+  "action": "wave",
   "intensity": 0.8,
+  "duration": 2.0,
+  "lookAtUser": true,
   "viewMode": "half-body",
   "interrupt": true
 }
 
 Common mappings:
-- Greeting → emotion: happy, animation: waving, viewMode: half-body
-- Celebration → emotion: happy, animation: victory, viewMode: full-body
-- Gratitude → emotion: happy, animation: quick_formal_bow, viewMode: half-body
-- Flirty/Love → emotion: happy, animation: blow_a_kiss, viewMode: half-body
-- Dancing → emotion: happy, animation: dancing_twerk, viewMode: full-body
-- Excited → emotion: happy, animation: jumping_down, viewMode: full-body
-- Pointing/Explaining → emotion: neutral, animation: pointing_gesture, viewMode: half-body
-- Prayer/Hope → emotion: neutral, animation: praying, viewMode: half-body
-- Confident → emotion: happy, animation: cocky_head_turn, viewMode: half-body
-- Approval → emotion: happy, animation: standing_thumbs_up, viewMode: half-body
-- Sad response → emotion: sad, animation: null, viewMode: head-only
-- Confused → emotion: confused, animation: null, viewMode: head-only
+- Greeting → emotion: happy, action: wave, viewMode: half-body, lookAtUser: true
+- Celebration → emotion: excited, action: celebrate, viewMode: full-body
+- Gratitude → emotion: happy, action: bow, viewMode: half-body
+- Agreement → emotion: happy, action: nod, viewMode: head-only
+- Disagreement → emotion: neutral, action: shake_head, viewMode: head-only
+- Approval → emotion: happy, action: thumbs_up, viewMode: half-body
+- Dancing/Fun → emotion: excited, action: dance, viewMode: full-body
+- Excited jump → emotion: excited, action: jump, viewMode: full-body
+- Pointing/Explaining → emotion: neutral, action: point, viewMode: half-body
+- Thinking/Pondering → emotion: neutral, action: think, viewMode: half-body
+- Confused/Uncertain → emotion: confused, action: shrug, viewMode: half-body
+- Sad response → emotion: sad, action: null, viewMode: head-only
+- Nervous → emotion: nervous, action: null, viewMode: head-only, lookAtUser: false
+- Cute response → emotion: cute, action: wave, viewMode: half-body
 
 Now generate the JSON for this conversation (JSON only, no other text):`;
 }
@@ -101,8 +100,10 @@ async function generateAnimationWithLLM(userMessage, agentResponse, ollamaServic
 function validateAnimationPayload(payload) {
   const validated = {
     emotion: 'neutral',
-    animation: null,
+    action: null,
     intensity: 0.7,
+    duration: undefined,
+    lookAtUser: false,
     viewMode: 'half-body',
     interrupt: true
   };
@@ -113,17 +114,29 @@ function validateAnimationPayload(payload) {
     console.warn(`Invalid emotion "${payload.emotion}", using neutral`);
   }
 
-  if (payload.animation) {
-    if (AVAILABLE_ANIMATIONS.includes(payload.animation)) {
-      validated.animation = payload.animation;
+  if (payload.action !== undefined) {
+    if (payload.action === null || AVAILABLE_ACTIONS.includes(payload.action)) {
+      validated.action = payload.action;
     } else {
-      console.warn(`Invalid animation "${payload.animation}", setting to null`);
-      validated.animation = null;
+      console.warn(`Invalid action "${payload.action}", setting to null`);
+      validated.action = null;
     }
+  }
+
+  if (payload.animation && AVAILABLE_ACTIONS.includes(payload.animation)) {
+    validated.action = payload.animation;
   }
 
   if (typeof payload.intensity === 'number') {
     validated.intensity = Math.max(0, Math.min(1, payload.intensity));
+  }
+
+  if (typeof payload.duration === 'number') {
+    validated.duration = Math.max(0.1, Math.min(10, payload.duration));
+  }
+
+  if (typeof payload.lookAtUser === 'boolean') {
+    validated.lookAtUser = payload.lookAtUser;
   }
 
   if (payload.viewMode && VIEW_MODES.includes(payload.viewMode)) {
@@ -140,8 +153,10 @@ function validateAnimationPayload(payload) {
 function getDefaultAnimation() {
   return {
     emotion: 'neutral',
-    animation: null,
+    action: null,
     intensity: 0.7,
+    duration: undefined,
+    lookAtUser: false,
     viewMode: 'half-body',
     interrupt: false
   };
@@ -213,7 +228,7 @@ module.exports = {
   generateAnimationWithLLM,
   validateAnimationPayload,
   getDefaultAnimation,
-  AVAILABLE_ANIMATIONS,
+  AVAILABLE_ACTIONS,
   AVAILABLE_EMOTIONS,
   VIEW_MODES
 };

@@ -3,9 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRM, VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
-import { AnimationManager } from '../lib/AnimationManager';
-import { EmotionSystem, Emotion } from '../lib/emotionSystem';
-import { ViewModeSystem, ViewMode } from '../lib/viewModeSystem';
+import { AvatarController } from './AvatarController';
+import { Emotion, ActionType, ViewMode, AnimationCommand } from '../types/animation';
 
 interface Props {
   onLoad?: () => void;
@@ -13,9 +12,7 @@ interface Props {
 
 function Avatar({ onLoad }: Props) {
   const vrmRef = useRef<VRM | null>(null);
-  const animManagerRef = useRef<AnimationManager | null>(null);
-  const emotionSystemRef = useRef<EmotionSystem | null>(null);
-  const viewModeSystemRef = useRef<ViewModeSystem | null>(null);
+  const controllerRef = useRef<AvatarController | null>(null);
   const { camera } = useThree();
 
   useEffect(() => {
@@ -51,24 +48,16 @@ function Avatar({ onLoad }: Props) {
         
         console.log('✅ Avatar loaded!');
         
+        // Initialize the new procedural animation controller
+        console.log('🎬 Initializing procedural animation controller...');
+        
+        const controls = (window as any).orbitControlsRef;
+        const controller = new AvatarController(vrm, camera, controls);
+        controllerRef.current = controller;
+        
+        console.log('✅ Procedural animation system ready!');
+        
         if (onLoad) onLoad();
-        
-        // Initialize animation systems immediately (but don't auto-play)
-        console.log('🎬 Initializing animation systems...');
-        
-        const animManager = new AnimationManager(vrm);
-        const emotionSystem = new EmotionSystem(vrm);
-        const viewModeSystem = new ViewModeSystem(camera);
-        
-        animManagerRef.current = animManager;
-        emotionSystemRef.current = emotionSystem;
-        viewModeSystemRef.current = viewModeSystem;
-        
-        // Start auto-blinking
-        emotionSystem.startAutoBlinking();
-        emotionSystem.setEmotion('neutral');
-        
-        console.log('✅ Animation system ready (use control panel to load animations)');
       },
       (progress) => {
         const percent = ((progress.loaded / progress.total) * 100).toFixed(0);
@@ -80,11 +69,9 @@ function Avatar({ onLoad }: Props) {
     );
   }, [onLoad, camera]);
 
-  // Update all systems in render loop
+  // Update animation controller in render loop
   useFrame((_, delta) => {
     if (vrmRef.current) {
-      vrmRef.current.update(delta);
-      
       // CRITICAL: Keep frustum culling disabled (fix for disappearing avatar)
       vrmRef.current.scene.traverse((obj) => {
         if (obj.frustumCulled) {
@@ -93,70 +80,52 @@ function Avatar({ onLoad }: Props) {
       });
     }
     
-    if (animManagerRef.current) {
-      animManagerRef.current.update(delta);
-    }
-    
-    if (emotionSystemRef.current) {
-      emotionSystemRef.current.update(delta);
+    if (controllerRef.current) {
+      controllerRef.current.update(delta);
     }
   });
 
   // Expose global API for external control
   useEffect(() => {
-    if (!animManagerRef.current || !emotionSystemRef.current || !viewModeSystemRef.current) {
+    if (!controllerRef.current) {
       return;
     }
 
     (window as any).avatarAPI = {
-      // Animation control
-      playAnimation: (name: string, options?: { loop?: boolean; crossFadeDuration?: number; timeScale?: number }) => {
-        return animManagerRef.current?.playAnimation(name, options);
-      },
-      loadAnimation: (name: string) => {
-        return animManagerRef.current?.loadAnimation(name);
-      },
-      loadAllAnimations: (onProgress?: (loaded: number, total: number) => void) => {
-        return animManagerRef.current?.loadAllAnimations(onProgress);
-      },
-      stopAnimation: (fadeDuration?: number) => {
-        animManagerRef.current?.stop(fadeDuration);
+      // Execute animation command (LLM-driven)
+      executeCommand: (command: AnimationCommand) => {
+        controllerRef.current?.executeAnimationCommand(command);
       },
       
-      // Emotion control
-      setEmotion: (emotion: Emotion, intensity: number = 1.0) => {
-        emotionSystemRef.current?.setEmotion(emotion, intensity);
+      // Direct animation control
+      playAction: (action: ActionType) => {
+        controllerRef.current?.playAction(action);
       },
-      setBlendShape: (name: string, value: number) => {
-        emotionSystemRef.current?.setBlendShape(name as any, value);
+      setEmotion: (emotion: Emotion, intensity?: number) => {
+        controllerRef.current?.setEmotion(emotion, intensity);
       },
-      blink: () => {
-        emotionSystemRef.current?.blink();
+      setViewMode: (mode: ViewMode) => {
+        controllerRef.current?.setViewMode(mode);
       },
-      
-      // View mode control
-      setViewMode: (mode: ViewMode, animate: boolean = true) => {
-        viewModeSystemRef.current?.setViewMode(mode, animate);
+      lookAtCamera: () => {
+        controllerRef.current?.lookAtCamera();
       },
-      cycleViewMode: () => {
-        return viewModeSystemRef.current?.cycleMode();
+      reset: () => {
+        controllerRef.current?.reset();
       },
       
       // Status
-      getStatus: () => ({
-        currentAnimation: animManagerRef.current?.getCurrentAnimation(),
-        currentEmotion: emotionSystemRef.current?.getCurrentEmotion(),
-        currentViewMode: viewModeSystemRef.current?.getCurrentMode(),
-        loadedAnimations: animManagerRef.current?.getLoadedAnimations() || [],
-        availableAnimations: animManagerRef.current?.getAvailableAnimations() || [],
-      }),
+      getStatus: () => {
+        return controllerRef.current?.getStatus() || {};
+      },
     };
 
-    console.log('🎮 Avatar API exposed to window.avatarAPI');
+    console.log('🎮 Procedural Avatar API exposed to window.avatarAPI');
     console.log('Example usage:');
-    console.log('  avatarAPI.playAnimation("waving")');
-    console.log('  avatarAPI.setEmotion("joy", 0.8)');
+    console.log('  avatarAPI.playAction("wave")');
+    console.log('  avatarAPI.setEmotion("happy", 0.8)');
     console.log('  avatarAPI.setViewMode("head-only")');
+    console.log('  avatarAPI.executeCommand({ emotion: "happy", action: "wave", viewMode: "half-body" })');
     console.log('  avatarAPI.getStatus()');
   }, []);
 
@@ -201,7 +170,10 @@ export default function AvatarCanvas({ onLoad }: Props) {
       
       <Avatar onLoad={onLoad} />
       
-      <OrbitControls 
+      <OrbitControls
+        ref={(ref) => {
+          if (ref) (window as any).orbitControlsRef = ref;
+        }}
         enableZoom={true}
         enableRotate={true}
         enablePan={true}

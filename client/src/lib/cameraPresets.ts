@@ -1,54 +1,50 @@
 import * as THREE from 'three';
+import { ViewMode, CameraConfig } from '../types/animation';
 
-export type ViewMode = 'full-body' | 'half-body' | 'head-only';
-
-export interface CameraConfig {
-  position: THREE.Vector3;
-  fov: number;
-  minDistance: number;
-  maxDistance: number;
-}
-
-/**
- * Camera configurations for each view mode
- */
-const VIEW_MODE_CONFIGS: Record<ViewMode, CameraConfig> = {
+export const CAMERA_PRESETS: Record<ViewMode, CameraConfig> = {
   'full-body': {
     position: new THREE.Vector3(0, 0.8, 3.5),
     fov: 35,
     minDistance: 1.5,
     maxDistance: 8,
+    lookAtOffset: new THREE.Vector3(0, 0.8, 0)
   },
   'half-body': {
-    position: new THREE.Vector3(0, 1.0, 2.0),
+    position: new THREE.Vector3(0, 1.2, 2.0),
     fov: 30,
     minDistance: 1.0,
     maxDistance: 4,
+    lookAtOffset: new THREE.Vector3(0, 1.2, 0)
   },
   'head-only': {
-    position: new THREE.Vector3(0, 1.4, 1.2),
+    position: new THREE.Vector3(0, 1.5, 1.2),
     fov: 25,
     minDistance: 0.5,
     maxDistance: 2,
+    lookAtOffset: new THREE.Vector3(0, 1.5, 0)
   },
+  'cinematic': {
+    position: new THREE.Vector3(2, 1.2, 3),
+    fov: 40,
+    minDistance: 2,
+    maxDistance: 10,
+    lookAtOffset: new THREE.Vector3(0, 1.0, 0)
+  }
 };
 
-export class ViewModeSystem {
-  private currentMode: ViewMode = 'full-body';
+export class CameraController {
   private camera: THREE.Camera;
-  private controls: any; // OrbitControls type
+  private controls: any;
+  private currentMode: ViewMode = 'full-body';
 
   constructor(camera: THREE.Camera, controls?: any) {
     this.camera = camera;
     this.controls = controls;
   }
 
-  /**
-   * Set the view mode
-   */
   setViewMode(mode: ViewMode, animate: boolean = true): void {
-    const config = VIEW_MODE_CONFIGS[mode];
-    
+    const config = CAMERA_PRESETS[mode];
+
     if (animate) {
       this.animateTransition(config);
     } else {
@@ -56,63 +52,66 @@ export class ViewModeSystem {
     }
 
     this.currentMode = mode;
-    console.log(`📷 View mode: ${mode}`);
+    console.log(`📷 Camera view mode: ${mode}`);
   }
 
-  /**
-   * Apply camera configuration
-   */
   private applyConfig(config: CameraConfig): void {
-    // Update camera position
     this.camera.position.copy(config.position);
 
-    // Update FOV (if perspective camera)
     if (this.camera instanceof THREE.PerspectiveCamera) {
       this.camera.fov = config.fov;
       this.camera.updateProjectionMatrix();
     }
 
-    // Update controls distance limits
     if (this.controls) {
       this.controls.minDistance = config.minDistance;
       this.controls.maxDistance = config.maxDistance;
+      
+      if (config.lookAtOffset) {
+        this.controls.target.copy(config.lookAtOffset);
+      }
+      
       this.controls.update();
     }
   }
 
-  /**
-   * Smoothly animate camera transition
-   */
   private animateTransition(config: CameraConfig): void {
     const startPos = this.camera.position.clone();
     const endPos = config.position;
     const startFov = (this.camera as THREE.PerspectiveCamera).fov;
     const endFov = config.fov;
-    const duration = 1000; // ms
+    const duration = 1000;
     const startTime = Date.now();
 
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const t = Math.min(elapsed / duration, 1);
-      
-      // Easing function (ease-in-out)
-      const eased = t < 0.5
-        ? 2 * t * t
-        : -1 + (4 - 2 * t) * t;
 
-      // Lerp position
+      const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
       this.camera.position.lerpVectors(startPos, endPos, eased);
 
-      // Lerp FOV
       if (this.camera instanceof THREE.PerspectiveCamera) {
-        this.camera.fov = startFov + (endFov - startFov) * eased;
+        this.camera.fov = THREE.MathUtils.lerp(startFov, endFov, eased);
         this.camera.updateProjectionMatrix();
       }
 
-      // Update controls
       if (this.controls) {
-        this.controls.minDistance = config.minDistance;
-        this.controls.maxDistance = config.maxDistance;
+        this.controls.minDistance = THREE.MathUtils.lerp(
+          this.controls.minDistance,
+          config.minDistance,
+          eased
+        );
+        this.controls.maxDistance = THREE.MathUtils.lerp(
+          this.controls.maxDistance,
+          config.maxDistance,
+          eased
+        );
+        
+        if (config.lookAtOffset) {
+          this.controls.target.lerp(config.lookAtOffset, eased);
+        }
+        
         this.controls.update();
       }
 
@@ -124,23 +123,30 @@ export class ViewModeSystem {
     animate();
   }
 
-  /**
-   * Get current view mode
-   */
   getCurrentMode(): ViewMode {
     return this.currentMode;
   }
 
-  /**
-   * Cycle through view modes
-   */
-  cycleMode(): ViewMode {
-    const modes: ViewMode[] = ['full-body', 'half-body', 'head-only'];
+  cycleViewMode(): ViewMode {
+    const modes: ViewMode[] = ['full-body', 'half-body', 'head-only', 'cinematic'];
     const currentIndex = modes.indexOf(this.currentMode);
     const nextIndex = (currentIndex + 1) % modes.length;
     const nextMode = modes[nextIndex];
-    
+
     this.setViewMode(nextMode);
     return nextMode;
+  }
+
+  lookAt(target: THREE.Vector3): void {
+    if (this.controls) {
+      this.controls.target.copy(target);
+      this.controls.update();
+    } else {
+      this.camera.lookAt(target);
+    }
+  }
+
+  reset(): void {
+    this.setViewMode('full-body', true);
   }
 }
