@@ -1,5 +1,7 @@
 import { VRM, VRMExpressionPresetName } from '@pixiv/three-vrm';
 import * as THREE from 'three';
+import AnimationLoader from '../lib/animationLoader';
+import EmotionEngine, { EmotionType } from '../lib/emotionEngine';
 
 interface PhonemeItem {
   phoneme: string;
@@ -20,19 +22,43 @@ interface AnimationCommand {
   keyframes?: any[];
 }
 
+export interface AnimationPayload {
+  emotion?: EmotionType;
+  animation?: string;
+  intensity?: number;
+  viewMode?: 'full-body' | 'half-body' | 'head-only';
+  speech?: string;
+  interrupt?: boolean;
+}
+
 export default class AvatarController {
   private vrm: VRM;
   private phonemeTimeline: PhonemeItem[] = [];
-  private animationCommands: AnimationCommand[] = [];
   private audioStartTime: number = 0;
   private isPlaying: boolean = false;
   private currentBlendshapes: Map<string, number> = new Map();
   private idleTime: number = 0;
   private needsTimeInit: boolean = false;
+  
+  public animationLoader: AnimationLoader;
+  public emotionEngine: EmotionEngine;
+  private isSpeaking: boolean = false;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
-    console.log('🎮 AvatarController initialized');
+    
+    this.animationLoader = new AnimationLoader();
+    this.animationLoader.initialize(vrm);
+    
+    this.emotionEngine = new EmotionEngine();
+    this.emotionEngine.initialize(vrm);
+    
+    console.log('🎮 AvatarController initialized with full animation & emotion systems');
+  }
+
+  async initializeAnimations(): Promise<void> {
+    await this.animationLoader.loadBasicAnimations();
+    console.log('✅ Basic animations loaded');
   }
 
   applyPhonemeTimeline(timeline: PhonemeItem[], audioStartTime?: number) {
@@ -44,19 +70,71 @@ export default class AvatarController {
       this.needsTimeInit = true;
     }
     this.isPlaying = true;
+    this.isSpeaking = true;
     
     console.log(`📝 Phoneme timeline applied: ${timeline.length} phonemes`);
   }
 
   applyAnimationCommands(commands: AnimationCommand[]) {
-    this.animationCommands = commands;
-    console.log(`🎬 Animation commands applied: ${commands.length} commands`);
+    console.log(`🎬 Animation commands received: ${commands.length} commands`);
+  }
+
+  async playAnimation(
+    name: string,
+    options?: {
+      fadeIn?: number;
+      fadeOut?: number;
+      loop?: boolean;
+      interrupt?: boolean;
+    }
+  ): Promise<void> {
+    await this.animationLoader.playAnimation(name, options);
+  }
+
+  setEmotion(emotion: EmotionType, intensity: number = 1.0): void {
+    this.emotionEngine.setEmotion(emotion, intensity);
+  }
+
+  async applyAnimationPayload(payload: AnimationPayload): Promise<void> {
+    console.log('🎭 Applying animation payload:', payload);
+
+    if (payload.interrupt) {
+      this.stopSpeaking();
+    }
+
+    if (payload.emotion) {
+      this.setEmotion(payload.emotion, payload.intensity || 1.0);
+    }
+
+    if (payload.animation) {
+      await this.playAnimation(payload.animation, {
+        interrupt: payload.interrupt !== false,
+        loop: false
+      });
+    }
+  }
+
+  stopSpeaking(): void {
+    this.isPlaying = false;
+    this.isSpeaking = false;
+    this.phonemeTimeline = [];
+    
+    this.animationLoader.stopCurrentAnimation(0.3);
+    this.animationLoader.returnToIdle(0.5);
+    
+    console.log('🛑 Speech and animation interrupted');
   }
 
   update(clockTime: number, deltaTime: number) {
     if (!this.vrm) return;
 
     this.idleTime += deltaTime;
+
+    this.animationLoader.update(deltaTime);
+
+    if (!this.isSpeaking) {
+      this.emotionEngine.update(deltaTime);
+    }
 
     if (this.isPlaying && this.phonemeTimeline.length > 0) {
       if (this.needsTimeInit) {
@@ -67,11 +145,13 @@ export default class AvatarController {
       
       const elapsed = clockTime - this.audioStartTime;
       this.updatePhonemeAnimation(elapsed);
-    } else {
+    } else if (!this.isSpeaking) {
       this.updateIdleAnimation(this.idleTime);
     }
 
-    this.updateHeadMovement(this.idleTime);
+    if (!this.isSpeaking) {
+      this.updateHeadMovement(this.idleTime);
+    }
 
     this.applyBlendshapes();
 
@@ -98,9 +178,12 @@ export default class AvatarController {
     }
 
     const lastPhoneme = this.phonemeTimeline[this.phonemeTimeline.length - 1];
-    if (time > lastPhoneme.end + 0.5) {
+    if (lastPhoneme && time > lastPhoneme.end + 0.5) {
       this.isPlaying = false;
+      this.isSpeaking = false;
       this.phonemeTimeline = [];
+      
+      this.animationLoader.returnToIdle(0.5);
     }
   }
 
@@ -114,7 +197,7 @@ export default class AvatarController {
   }
 
   private updateHeadMovement(time: number) {
-    if (!this.vrm.humanoid) return;
+    if (!this.vrm.humanoid || this.isSpeaking) return;
 
     const head = this.vrm.humanoid.getNormalizedBoneNode('head');
     if (head) {
@@ -200,10 +283,28 @@ export default class AvatarController {
     }, 150);
   }
 
+  getAvailableAnimations(): string[] {
+    return this.animationLoader.getAvailableAnimations();
+  }
+
+  getCurrentAnimation(): string | null {
+    return this.animationLoader.getCurrentAnimation();
+  }
+
+  getCurrentEmotion(): EmotionType {
+    return this.emotionEngine.getCurrentEmotion();
+  }
+
+  getEmotionIntensity(): number {
+    return this.emotionEngine.getEmotionIntensity();
+  }
+
   reset() {
     this.phonemeTimeline = [];
-    this.animationCommands = [];
     this.isPlaying = false;
+    this.isSpeaking = false;
     this.currentBlendshapes.clear();
+    this.emotionEngine.reset();
+    this.animationLoader.returnToIdle();
   }
 }

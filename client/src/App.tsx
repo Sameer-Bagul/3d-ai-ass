@@ -2,18 +2,22 @@ import React, { useState, useCallback } from 'react';
 import AvatarCanvas from './components/AvatarCanvas';
 import Controls from './components/Controls';
 import DebugPanel from './components/DebugPanel';
+import AvatarController from './components/AvatarController';
+import ViewModeController from './lib/viewModes';
 
 function App() {
-  const [avatarController, setAvatarController] = useState<any>(null);
+  const [avatarController, setAvatarController] = useState<AvatarController | null>(null);
+  const [viewModeController, setViewModeController] = useState<ViewModeController | null>(null);
   const [debugInfo, setDebugInfo] = useState({
     status: 'Initializing...',
     phonemesActive: false,
     animationTime: 0
   });
 
-  const handleAvatarReady = useCallback((controller: any) => {
+  const handleAvatarReady = useCallback((controller: AvatarController, viewController: ViewModeController) => {
     console.log('✅ Avatar controller ready');
     setAvatarController(controller);
+    setViewModeController(viewController);
     setDebugInfo(prev => ({ ...prev, status: 'Avatar loaded' }));
   }, []);
 
@@ -29,6 +33,7 @@ function App() {
       />
       <Controls 
         avatarController={avatarController}
+        viewModeController={viewModeController}
         onDebugUpdate={updateDebugInfo}
       />
       <DebugPanel info={debugInfo} />

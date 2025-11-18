@@ -1,20 +1,26 @@
 import { useState, useEffect } from 'react';
 import AvatarController from './AvatarController';
+import ViewModeController, { ViewMode } from '../lib/viewModes';
+import { EmotionType } from '../lib/emotionEngine';
 import { webSpeechTTS, isSupported, getAvailableVoices } from '../lib/webSpeechTTS';
 
 interface ControlsProps {
   avatarController: AvatarController | null;
+  viewModeController: ViewModeController | null;
   onDebugUpdate?: (info: any) => void;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-export default function Controls({ avatarController, onDebugUpdate }: ControlsProps) {
+export default function Controls({ avatarController, viewModeController, onDebugUpdate }: ControlsProps) {
   const [message, setMessage] = useState('Hello! How are you today?');
   const [status, setStatus] = useState('Ready');
   const [isProcessing, setIsProcessing] = useState(false);
   const [ttsSupported, setTtsSupported] = useState(false);
   const [voiceCount, setVoiceCount] = useState(0);
+  const [currentEmotion, setCurrentEmotion] = useState<EmotionType>('neutral');
+  const [currentAnimation, setCurrentAnimation] = useState<string | null>(null);
+  const [currentViewMode, setCurrentViewMode] = useState<ViewMode>('full-body');
 
   useEffect(() => {
     const supported = isSupported();
@@ -25,14 +31,12 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
         const voices = getAvailableVoices();
         setVoiceCount(voices.length);
         console.log('🎤 Web Speech API supported. Available voices:', voices.length);
-        console.log('Voices:', voices.map(v => `${v.name} (${v.lang})`));
       }, 100);
       
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = () => {
           const voices = getAvailableVoices();
           setVoiceCount(voices.length);
-          console.log('🎤 Voices loaded:', voices.length);
         };
       }
     } else {
@@ -40,6 +44,20 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
       setStatus('Web Speech API not supported');
     }
   }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (avatarController) {
+        setCurrentEmotion(avatarController.getCurrentEmotion());
+        setCurrentAnimation(avatarController.getCurrentAnimation());
+      }
+      if (viewModeController) {
+        setCurrentViewMode(viewModeController.getCurrentMode());
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [avatarController, viewModeController]);
 
   const handleChat = async () => {
     if (!avatarController || !message.trim()) {
@@ -71,6 +89,15 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
       setStatus(`Reply: ${data.reply}`);
       console.log('💬 Chat response:', data);
 
+      if (data.animationPayload) {
+        console.log('🎭 Applying animation payload:', data.animationPayload);
+        await avatarController.applyAnimationPayload(data.animationPayload);
+        
+        if (data.animationPayload.viewMode && viewModeController) {
+          viewModeController.setViewMode(data.animationPayload.viewMode, 1.0);
+        }
+      }
+
       if (data.tts && data.tts.useClientTTS) {
         console.log('🔊 Using Web Speech TTS for:', data.tts.text);
         
@@ -95,13 +122,8 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
           console.error('❌ Speech error:', error);
           setStatus(`Speech error: ${error}`);
         }
-      } else {
-        console.warn('⚠️ No TTS data in response');
       }
 
-      if (data.animationPlan) {
-        onDebugUpdate?.({ status: 'Animation plan received' });
-      }
     } catch (error) {
       console.error('❌ Chat error:', error);
       setStatus(`Error: ${error}`);
@@ -110,113 +132,125 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
     }
   };
 
-  const handleTTS = async () => {
-    if (!message.trim()) {
-      setStatus('Please enter text for TTS');
-      return;
-    }
-
-    if (!ttsSupported) {
-      alert('Web Speech API not supported in this browser!');
-      return;
-    }
-
-    setIsProcessing(true);
-    setStatus('Generating speech...');
-
-    try {
-      console.log('🎤 Starting direct TTS');
-      console.log('📝 Text:', message);
-      
-      const phonemes = webSpeechTTS.generateEstimatedPhonemes(message);
-      console.log('📊 Estimated phonemes:', phonemes.length);
-      
-      if (avatarController && phonemes && phonemes.length > 0) {
-        avatarController.applyPhonemeTimeline(phonemes);
-        onDebugUpdate?.({ 
-          phonemesActive: true,
-          status: `Animating with ${phonemes.length} phonemes`
-        });
-      }
-
-      console.log('🗣️ Calling speak...');
-      await webSpeechTTS.speak(message, {
-        rate: 1.0,
-        pitch: 1.0,
-        volume: 1.0
-      });
-      
-      console.log('✅ Speech completed');
-      setStatus('Speech completed');
-    } catch (error) {
-      console.error('❌ TTS error:', error);
-      setStatus(`Error: ${error}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleSimpleTest = () => {
-    console.log('🧪 Simple TTS test');
-    const utterance = new SpeechSynthesisUtterance('Testing one two three');
-    utterance.onstart = () => console.log('▶️ Speech started');
-    utterance.onend = () => console.log('⏹️ Speech ended');
-    utterance.onerror = (e) => console.error('❌ Speech error:', e);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleTestAnimation = () => {
-    if (!avatarController) {
-      setStatus('Avatar not ready');
-      return;
-    }
-
-    const samplePhonemes = [
-      { phoneme: 'HH', start: 0.0, end: 0.08 },
-      { phoneme: 'AH', start: 0.08, end: 0.18 },
-      { phoneme: 'L', start: 0.18, end: 0.25 },
-      { phoneme: 'OW', start: 0.25, end: 0.40 },
-      { phoneme: 'W', start: 0.50, end: 0.58 },
-      { phoneme: 'ER', start: 0.58, end: 0.70 },
-      { phoneme: 'L', start: 0.70, end: 0.78 },
-      { phoneme: 'D', start: 0.78, end: 0.85 }
-    ];
-
-    avatarController.applyPhonemeTimeline(samplePhonemes);
+  const handleStop = () => {
+    if (!avatarController) return;
     
-    setStatus('Testing lip-sync animation');
-    onDebugUpdate?.({ 
-      phonemesActive: true,
-      status: 'Test animation playing'
+    avatarController.stopSpeaking();
+    window.speechSynthesis.cancel();
+    setStatus('Stopped');
+    setIsProcessing(false);
+  };
+
+  const handleSetEmotion = (emotion: EmotionType) => {
+    if (!avatarController) return;
+    avatarController.setEmotion(emotion, 1.0);
+    setStatus(`Emotion set to: ${emotion}`);
+  };
+
+  const handlePlayAnimation = async (animName: string) => {
+    if (!avatarController) return;
+    setStatus(`Playing: ${animName}`);
+    await avatarController.playAnimation(animName, {
+      interrupt: true,
+      loop: false
     });
   };
+
+  const handleSetViewMode = (mode: ViewMode) => {
+    if (!viewModeController) return;
+    viewModeController.setViewMode(mode, 1.0);
+    setStatus(`View mode: ${mode}`);
+  };
+
+  const animations = avatarController?.getAvailableAnimations() || [];
 
   return (
     <div className="controls-panel">
       <h2>🎮 Avatar Controls</h2>
       
-      <textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        placeholder="Type a message..."
-        disabled={isProcessing}
-      />
+      <div style={{ marginBottom: '15px' }}>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Type a message..."
+          disabled={isProcessing}
+          rows={3}
+        />
+      </div>
 
-      <button onClick={handleChat} disabled={isProcessing || !avatarController}>
-        💬 Send Chat
-      </button>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+        <button onClick={handleChat} disabled={isProcessing || !avatarController}>
+          💬 Send Chat
+        </button>
+        <button onClick={handleStop} disabled={!isProcessing}>
+          🛑 Stop
+        </button>
+      </div>
 
-      <button onClick={handleTTS} disabled={isProcessing || !ttsSupported}>
-        🔊 Generate TTS & Animate
-      </button>
+      <details style={{ marginBottom: '15px' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>😊 Emotions</summary>
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginTop: '8px' }}>
+          {(['happy', 'sad', 'angry', 'surprised', 'confused', 'neutral'] as EmotionType[]).map(emotion => (
+            <button
+              key={emotion}
+              onClick={() => handleSetEmotion(emotion)}
+              disabled={!avatarController}
+              style={{ 
+                fontSize: '11px',
+                background: currentEmotion === emotion ? '#8b5cf6' : undefined
+              }}
+            >
+              {emotion}
+            </button>
+          ))}
+        </div>
+      </details>
 
-      <button onClick={handleSimpleTest} disabled={!ttsSupported}>
-        🧪 Simple TTS Test
-      </button>
+      <details style={{ marginBottom: '15px' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>🎬 Animations</summary>
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '5px', 
+          marginTop: '8px',
+          maxHeight: '200px',
+          overflowY: 'auto'
+        }}>
+          {animations.map(anim => (
+            <button
+              key={anim}
+              onClick={() => handlePlayAnimation(anim)}
+              disabled={!avatarController}
+              style={{ 
+                fontSize: '10px',
+                padding: '4px 6px',
+                background: currentAnimation === anim ? '#8b5cf6' : undefined
+              }}
+            >
+              {anim.replace(/_/g, ' ')}
+            </button>
+          ))}
+        </div>
+      </details>
 
-      <button onClick={handleTestAnimation} disabled={isProcessing || !avatarController}>
-        🎭 Test Lip-Sync
-      </button>
+      <details style={{ marginBottom: '15px' }}>
+        <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>📷 View Modes</summary>
+        <div style={{ display: 'flex', gap: '5px', marginTop: '8px' }}>
+          {(['full-body', 'half-body', 'head-only'] as ViewMode[]).map(mode => (
+            <button
+              key={mode}
+              onClick={() => handleSetViewMode(mode)}
+              disabled={!viewModeController}
+              style={{ 
+                fontSize: '11px',
+                background: currentViewMode === mode ? '#8b5cf6' : undefined
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </details>
 
       <div style={{ 
         marginTop: '15px', 
@@ -234,7 +268,10 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
         opacity: 0.7
       }}>
         <div>Server: {API_URL}</div>
-        <div>TTS: {ttsSupported ? `✅ Supported (${voiceCount} voices)` : '❌ Not Supported'}</div>
+        <div>TTS: {ttsSupported ? `✅ (${voiceCount} voices)` : '❌'}</div>
+        <div>Emotion: {currentEmotion}</div>
+        <div>Animation: {currentAnimation || 'idle'}</div>
+        <div>View: {currentViewMode}</div>
       </div>
     </div>
   );

@@ -14,19 +14,31 @@ exports.handleChat = async (req, res) => {
     
     const llmResponse = await ollamaService.generate(message, options);
     
+    let animationPayload;
+    try {
+      animationPayload = await animationPlanner.generateAnimationWithLLM(
+        message,
+        llmResponse.text,
+        ollamaService
+      );
+    } catch (error) {
+      console.error('Animation planning error:', error);
+      animationPayload = animationPlanner.getDefaultAnimation();
+    }
+    
     const animationPlan = animationPlanner.createAnimationPlan({
       text: llmResponse.text,
       type: 'speech',
       style: options.style || 'casual'
     });
     
-    // Generate phonemes for web speech API
     const duration = llmResponse.text.length * 0.08 + 0.5;
     const phonemes = ttsService.generateDummyPhonemes(llmResponse.text, duration);
     
     res.json({
       reply: llmResponse.text,
       animationPlan: animationPlan,
+      animationPayload: animationPayload,
       tts: {
         mode: 'web-speech',
         text: llmResponse.text,
@@ -38,7 +50,10 @@ exports.handleChat = async (req, res) => {
     });
   } catch (error) {
     console.error('Chat error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
   }
 };
 

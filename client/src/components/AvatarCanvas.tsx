@@ -1,20 +1,23 @@
 import React, { Suspense, useRef, useEffect } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
 import AvatarController from './AvatarController';
+import ViewModeController, { ViewMode } from '../lib/viewModes';
 
 interface AvatarCanvasProps {
-  onAvatarReady?: (controller: AvatarController) => void;
+  onAvatarReady?: (controller: AvatarController, viewModeController: ViewModeController) => void;
   onDebugUpdate?: (info: any) => void;
 }
 
-function AvatarModel({ onReady }: { onReady?: (controller: AvatarController) => void }) {
+function AvatarModel({ onReady }: { onReady?: (controller: AvatarController, viewModeController: ViewModeController) => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const vrmRef = useRef<VRM | null>(null);
   const controllerRef = useRef<AvatarController | null>(null);
+  const viewModeControllerRef = useRef<ViewModeController | null>(null);
+  const { camera, controls } = useThree();
 
   useEffect(() => {
     const loader = new GLTFLoader();
@@ -26,7 +29,7 @@ function AvatarModel({ onReady }: { onReady?: (controller: AvatarController) => 
 
     loader.load(
       vrmPath,
-      (gltf) => {
+      async (gltf) => {
         const vrm = gltf.userData.vrm as VRM;
         
         if (vrm && groupRef.current) {
@@ -42,8 +45,14 @@ function AvatarModel({ onReady }: { onReady?: (controller: AvatarController) => 
           const controller = new AvatarController(vrm);
           controllerRef.current = controller;
           
+          await controller.initializeAnimations();
+          
+          const viewModeController = new ViewModeController();
+          viewModeController.initialize(camera, controls);
+          viewModeControllerRef.current = viewModeController;
+          
           if (onReady) {
-            onReady(controller);
+            onReady(controller, viewModeController);
           }
         }
       },
@@ -72,12 +81,16 @@ function AvatarModel({ onReady }: { onReady?: (controller: AvatarController) => 
         });
       }
     };
-  }, [onReady]);
+  }, [onReady, camera, controls]);
 
   useFrame((state, delta) => {
     if (controllerRef.current) {
       const clockTime = state.clock.elapsedTime;
       controllerRef.current.update(clockTime, delta);
+    }
+    
+    if (viewModeControllerRef.current) {
+      viewModeControllerRef.current.update(delta);
     }
   });
 
