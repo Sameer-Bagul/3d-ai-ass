@@ -70,19 +70,21 @@ export class AnimationLoader {
         path,
         (fbx) => {
           if (fbx.animations && fbx.animations.length > 0) {
-            const clip = fbx.animations[0];
+            let clip = fbx.animations[0];
             clip.name = name;
 
-            const action = this.mixer!.clipAction(clip);
+            const retargetedClip = this.retargetAnimationToVRM(clip);
+            
+            const action = this.mixer!.clipAction(retargetedClip);
             
             const loadedAnim: LoadedAnimation = {
               name,
-              clip,
+              clip: retargetedClip,
               action
             };
 
             this.animations.set(name, loadedAnim);
-            console.log(`✅ Loaded animation: ${name}`);
+            console.log(`✅ Loaded & retargeted animation: ${name}`);
             
             resolve(loadedAnim);
           } else {
@@ -107,6 +109,77 @@ export class AnimationLoader {
       this.loadingPromises.delete(name);
       return null;
     }
+  }
+
+  private retargetAnimationToVRM(clip: THREE.AnimationClip): THREE.AnimationClip {
+    if (!this.vrm) return clip;
+
+    const mixamoToVRM: Record<string, string> = {
+      'mixamorigHips': 'hips',
+      'mixamorigSpine': 'spine',
+      'mixamorigSpine1': 'chest',
+      'mixamorigSpine2': 'upperChest',
+      'mixamorigNeck': 'neck',
+      'mixamorigHead': 'head',
+      'mixamorigLeftShoulder': 'leftShoulder',
+      'mixamorigLeftArm': 'leftUpperArm',
+      'mixamorigLeftForeArm': 'leftLowerArm',
+      'mixamorigLeftHand': 'leftHand',
+      'mixamorigRightShoulder': 'rightShoulder',
+      'mixamorigRightArm': 'rightUpperArm',
+      'mixamorigRightForeArm': 'rightLowerArm',
+      'mixamorigRightHand': 'rightHand',
+      'mixamorigLeftUpLeg': 'leftUpperLeg',
+      'mixamorigLeftLeg': 'leftLowerLeg',
+      'mixamorigLeftFoot': 'leftFoot',
+      'mixamorigLeftToeBase': 'leftToes',
+      'mixamorigRightUpLeg': 'rightUpperLeg',
+      'mixamorigRightLeg': 'rightLowerLeg',
+      'mixamorigRightFoot': 'rightFoot',
+      'mixamorigRightToeBase': 'rightToes'
+    };
+
+    const retargetedTracks: THREE.KeyframeTrack[] = [];
+
+    for (const track of clip.tracks) {
+      const trackPath = track.name.split('.');
+      const boneName = trackPath[0];
+      const property = trackPath[1];
+
+      const vrmBoneName = mixamoToVRM[boneName];
+      
+      if (vrmBoneName && this.vrm.humanoid) {
+        const vrmBone = this.vrm.humanoid.getNormalizedBoneNode(vrmBoneName as any);
+        
+        if (vrmBone) {
+          const newTrackName = `${vrmBone.name}.${property}`;
+          
+          const TrackConstructor = track.constructor as any;
+          const newTrack = new TrackConstructor(
+            newTrackName,
+            track.times,
+            track.values,
+            track.getInterpolation()
+          );
+          
+          retargetedTracks.push(newTrack);
+        }
+      }
+    }
+
+    if (retargetedTracks.length === 0) {
+      console.warn(`⚠️ No tracks were retargeted for ${clip.name}, using original clip`);
+      return clip;
+    }
+
+    const retargetedClip = new THREE.AnimationClip(
+      clip.name,
+      clip.duration,
+      retargetedTracks
+    );
+
+    console.log(`🎯 Retargeted ${retargetedTracks.length} tracks for ${clip.name}`);
+    return retargetedClip;
   }
 
   async loadBasicAnimations(): Promise<void> {
@@ -134,7 +207,12 @@ export class AnimationLoader {
       interrupt?: boolean;
     } = {}
   ): Promise<void> {
-    if (!this.mixer) return;
+    console.log(`🎬 playAnimation called: ${name}`);
+    
+    if (!this.mixer) {
+      console.error('❌ Animation mixer not initialized');
+      return;
+    }
 
     const {
       fadeIn = 0.3,
@@ -147,16 +225,18 @@ export class AnimationLoader {
     let animation = this.animations.get(name);
     
     if (!animation) {
+      console.log(`📥 Loading animation: ${name}`);
       const loaded = await this.loadAnimation(name);
       animation = loaded || undefined;
     }
 
     if (!animation || !animation.action) {
-      console.warn(`Animation "${name}" not found`);
+      console.warn(`❌ Animation "${name}" not found or failed to load`);
       return;
     }
 
     if (interrupt && this.currentAction && this.currentAction !== this.idleAction) {
+      console.log(`⏸️ Interrupting current animation`);
       this.currentAction.fadeOut(fadeOut);
     }
 
@@ -168,10 +248,13 @@ export class AnimationLoader {
     action.play();
 
     this.currentAction = action;
+    
+    console.log(`▶️ Playing animation: ${name} (duration: ${action.getClip().duration.toFixed(2)}s, loop: ${loop})`);
 
     if (!loop) {
       const duration = action.getClip().duration;
       setTimeout(() => {
+        console.log(`🔄 Animation ${name} completed, returning to idle`);
         this.returnToIdle(fadeOut);
       }, duration * 1000);
     }

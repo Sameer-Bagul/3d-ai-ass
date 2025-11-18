@@ -12,10 +12,19 @@ This document describes the comprehensive animation, emotion, and camera control
 
 **Capabilities**:
 - Loads all 19 FBX animations from `/client/public/animations/`
+- **Automatic skeleton retargeting** from Mixamo to VRM bone names
 - Manages Three.js AnimationMixer for smooth animation playback
 - Automatic blending between animations with configurable fade times
 - Auto-returns to idle animation when animations complete
 - Interruption support for stopping current animations
+
+**Critical Feature - Skeleton Retargeting**:
+The system automatically converts Mixamo skeleton bone names (e.g., "mixamorigHips") to VRM humanoid bone names (e.g., "hips"). This allows standard Mixamo animations to work seamlessly with VRM avatars without manual editing.
+
+Supported bone mappings:
+- Core: hips, spine, chest, upperChest, neck, head
+- Arms: shoulders, upperArms, lowerArms, hands (both left/right)
+- Legs: upperLegs, lowerLegs, feet, toes (both left/right)
 
 **Available Animations**:
 - idle, breathing_idle, happy_idle (basic idle states)

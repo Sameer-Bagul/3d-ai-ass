@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
 import AvatarController from './AvatarController';
-import ViewModeController, { ViewMode } from '../lib/viewModes';
+import ViewModeController from '../lib/viewModes';
 
 interface AvatarCanvasProps {
   onAvatarReady?: (controller: AvatarController, viewModeController: ViewModeController) => void;
@@ -97,7 +97,7 @@ function AvatarModel({ onReady }: { onReady?: (controller: AvatarController, vie
   return <group ref={groupRef} />;
 }
 
-export default function AvatarCanvas({ onAvatarReady, onDebugUpdate }: AvatarCanvasProps) {
+export default function AvatarCanvas({ onAvatarReady }: AvatarCanvasProps) {
   return (
     <Canvas
       camera={{ position: [0, 1.4, 2.5], fov: 30 }}

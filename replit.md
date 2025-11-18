@@ -12,14 +12,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-**November 18, 2025 (Latest Update)**: Comprehensive Animation & Emotion System
+**November 18, 2025 (Latest Update)**: Comprehensive Animation & Emotion System + Critical Bug Fix
 - ✅ **Animation Loader**: FBX animation system for all 19 Mixamo animations with smooth blending
+- ✅ **Skeleton Retargeting**: Automatic conversion of Mixamo bone names to VRM humanoid bones (critical fix for animation playback)
 - ✅ **Emotion Engine**: 6 emotions (happy, sad, angry, surprised, confused, neutral) with facial blendshapes and micro-movements
 - ✅ **View Modes**: 3 camera modes (full-body, half-body, head-only) with smooth transitions
 - ✅ **LLM Animation Planning**: Ollama generates structured JSON for emotion, animation, and camera control
 - ✅ **Interruption System**: Stop button to cancel speech/animations and return to idle
 - ✅ **Enhanced UI**: Emotion selector, animation picker, view mode controls with real-time status
 - ✅ **Integration**: All systems work together - body animations, facial emotions, lip-sync, and camera movements
+- ✅ **Bug Fix**: Animations now properly retarget from Mixamo skeleton to VRM humanoid skeleton
 
 **November 18, 2025 (Initial Build)**: Complete 3D AI Avatar Platform built from scratch based on plan.md
 - Created full-stack application with Node.js backend and React frontend
