@@ -86,7 +86,7 @@ npm install
 cd server
 npm run dev
 ```
-Server will run on http://localhost:4000
+Server will run on http://localhost:3000
 
 5. **Start the client (Terminal 2):**
 ```bash
@@ -105,7 +105,7 @@ docker-compose up --build
 ```
 
 This will start:
-- Server on port 4000
+- Server on port 3000
 - Client on port 5000  
 - Ollama on port 11434
 
@@ -141,7 +141,7 @@ This will start:
 
 ### WebSocket
 
-Connect to `ws://localhost:4000` for real-time communication:
+Connect to `ws://localhost:3000` for real-time communication:
 
 **Message Types:**
 - `chat_in` - Send chat message
@@ -254,7 +254,7 @@ npm run build
 
 **Server (.env):**
 ```
-PORT=4000
+PORT=3000
 OLLAMA_URL=http://localhost:11434
 TTS_PROVIDER=local
 NODE_ENV=production
@@ -262,7 +262,7 @@ NODE_ENV=production
 
 **Client (.env):**
 ```
-VITE_API_URL=http://your-server-url:4000
+VITE_API_URL=http://your-server-url:3000
 ```
 
 ### Production Build

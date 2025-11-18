@@ -28,6 +28,7 @@ export default class AvatarController {
   private isPlaying: boolean = false;
   private currentBlendshapes: Map<string, number> = new Map();
   private idleTime: number = 0;
+  private needsTimeInit: boolean = false;
 
   constructor(vrm: VRM) {
     this.vrm = vrm;
@@ -36,7 +37,12 @@ export default class AvatarController {
 
   applyPhonemeTimeline(timeline: PhonemeItem[], audioStartTime?: number) {
     this.phonemeTimeline = timeline;
-    this.audioStartTime = audioStartTime || performance.now() / 1000;
+    if (audioStartTime !== undefined) {
+      this.audioStartTime = audioStartTime;
+      this.needsTimeInit = false;
+    } else {
+      this.needsTimeInit = true;
+    }
     this.isPlaying = true;
     
     console.log(`📝 Phoneme timeline applied: ${timeline.length} phonemes`);
@@ -53,6 +59,12 @@ export default class AvatarController {
     this.idleTime += deltaTime;
 
     if (this.isPlaying && this.phonemeTimeline.length > 0) {
+      if (this.needsTimeInit) {
+        this.audioStartTime = clockTime;
+        this.needsTimeInit = false;
+        console.log(`⏱️  Audio start time initialized to: ${clockTime.toFixed(3)}s`);
+      }
+      
       const elapsed = clockTime - this.audioStartTime;
       this.updatePhonemeAnimation(elapsed);
     } else {

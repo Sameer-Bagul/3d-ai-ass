@@ -1,5 +1,5 @@
 import React, { Suspense, useRef, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -73,6 +73,13 @@ function AvatarModel({ onReady }: { onReady?: (controller: AvatarController) => 
       }
     };
   }, [onReady]);
+
+  useFrame((state, delta) => {
+    if (controllerRef.current) {
+      const clockTime = state.clock.elapsedTime;
+      controllerRef.current.update(clockTime, delta);
+    }
+  });
 
   return <group ref={groupRef} />;
 }

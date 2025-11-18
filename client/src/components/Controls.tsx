@@ -7,7 +7,7 @@ interface ControlsProps {
   onDebugUpdate?: (info: any) => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export default function Controls({ avatarController, onDebugUpdate }: ControlsProps) {
   const [message, setMessage] = useState('Hello! How are you today?');
@@ -75,8 +75,7 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
       console.log('🔊 TTS response:', data);
       
       if (data.phonemes && data.phonemes.length > 0) {
-        const audioStartTime = performance.now() / 1000;
-        avatarController.applyPhonemeTimeline(data.phonemes, audioStartTime);
+        avatarController.applyPhonemeTimeline(data.phonemes);
         
         setStatus(`Playing ${data.phonemes.length} phonemes`);
         onDebugUpdate?.({ 
@@ -109,8 +108,7 @@ export default function Controls({ avatarController, onDebugUpdate }: ControlsPr
       { phoneme: 'D', start: 0.78, end: 0.85 }
     ];
 
-    const audioStartTime = performance.now() / 1000;
-    avatarController.applyPhonemeTimeline(samplePhonemes, audioStartTime);
+    avatarController.applyPhonemeTimeline(samplePhonemes);
     
     setStatus('Testing lip-sync animation');
     onDebugUpdate?.({ 
