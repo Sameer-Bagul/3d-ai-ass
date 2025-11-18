@@ -12,7 +12,16 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
-**November 18, 2025**: Complete 3D AI Avatar Platform built from scratch based on plan.md
+**November 18, 2025 (Latest Update)**: Comprehensive Animation & Emotion System
+- ✅ **Animation Loader**: FBX animation system for all 19 Mixamo animations with smooth blending
+- ✅ **Emotion Engine**: 6 emotions (happy, sad, angry, surprised, confused, neutral) with facial blendshapes and micro-movements
+- ✅ **View Modes**: 3 camera modes (full-body, half-body, head-only) with smooth transitions
+- ✅ **LLM Animation Planning**: Ollama generates structured JSON for emotion, animation, and camera control
+- ✅ **Interruption System**: Stop button to cancel speech/animations and return to idle
+- ✅ **Enhanced UI**: Emotion selector, animation picker, view mode controls with real-time status
+- ✅ **Integration**: All systems work together - body animations, facial emotions, lip-sync, and camera movements
+
+**November 18, 2025 (Initial Build)**: Complete 3D AI Avatar Platform built from scratch based on plan.md
 - Created full-stack application with Node.js backend and React frontend
 - Implemented VRM avatar rendering with Three.js
 - Built phoneme-based lip-sync animation system
@@ -31,12 +40,23 @@ Preferred communication style: Simple, everyday language.
 **3D Rendering Engine**: Uses Three.js via @react-three/fiber (React renderer for Three.js) with @react-three/drei utilities for common 3D operations like camera controls. The VRM avatar model is loaded and animated using the @pixiv/three-vrm library, which provides comprehensive support for VRM format including blendshape morphing and bone manipulation.
 
 **Component Structure**:
-- `AvatarCanvas`: Main 3D scene container that initializes the Three.js renderer and camera
-- `AvatarController`: Core animation controller class that manages blendshape values, phoneme timeline playback, and idle animations
-- `Controls`: UI component for user input, handles chat messages and TTS requests
+- `AvatarCanvas`: Main 3D scene container that initializes the Three.js renderer, camera, and view mode controller
+- `AvatarController`: Core animation controller that orchestrates AnimationLoader, EmotionEngine, and phoneme lip-sync
+- `Controls`: UI component with chat input, emotion selector, animation picker, view mode controls, and stop button
 - `DebugPanel`: Real-time status display for development and monitoring
 
-**Animation System**: The avatar controller applies phoneme-based lip-sync by mapping phonemes to visemes, then to VRM blendshapes. Animation playback is synchronized with Web Audio API timing for precise audio-visual alignment. The system supports layered animations (lip-sync, expressions, head movements, gestures) that can blend together.
+**New Library Modules**:
+- `animationLoader.ts`: Manages loading and playback of 19 FBX animations from Mixamo with smooth blending
+- `emotionEngine.ts`: Handles 6 emotions with facial blendshapes, head movements, and natural micro-movements
+- `viewModes.ts`: Controls camera positioning with 3 modes (full-body, half-body, head-only) and smooth transitions
+
+**Animation System**: Multi-layered animation system that blends:
+1. **Body Animations**: FBX skeletal animations loaded via FBXLoader and played through Three.js AnimationMixer
+2. **Facial Emotions**: VRM expression blendshapes controlled by EmotionEngine
+3. **Lip-Sync**: Phoneme-to-viseme mapping for mouth movements synchronized with speech
+4. **Camera Movement**: Smooth view transitions based on context
+
+All layers blend together seamlessly - body can dance while face shows emotions and mouth syncs to speech.
 
 **State Management**: Uses React hooks (useState, useCallback, useRef) for local component state. Custom hooks like `useAudioSync` encapsulate complex audio-animation synchronization logic.
 
@@ -51,7 +71,7 @@ Preferred communication style: Simple, everyday language.
 **Service Layer Pattern**: Business logic is separated into dedicated service modules:
 - `ollamaService`: Communicates with Ollama API for LLM inference (Mistral model)
 - `ttsService`: Generates text-to-speech audio and phoneme timelines
-- `animationPlanner`: Creates high-level animation plans from text, detecting punctuation and sentiment to add appropriate gestures and expressions
+- `animationPlanner`: **NEW** - LLM-driven animation planning that generates structured JSON payloads with emotion, animation (from available 19 FBX files), viewMode, and intensity. Validates all outputs against available animations.
 - `audioService`: Handles audio file operations and amplitude analysis
 
 **Controller Layer**: Request handlers in dedicated controllers (`chatController`, `ttsController`, `modelController`) validate input, orchestrate service calls, and format responses.
@@ -63,7 +83,7 @@ Preferred communication style: Simple, everyday language.
 ### API Design
 
 **REST Endpoints**:
-- `POST /api/chat`: Accepts user messages, returns LLM response with animation plan
+- `POST /api/chat`: **UPDATED** - Returns LLM response with animation plan AND animationPayload (emotion, animation, viewMode, intensity)
 - `POST /api/tts`: Synthesizes speech from text, returns audio URL and phoneme timeline
 - `GET /api/phonemes/:id`: Retrieves cached phoneme timeline by ID
 - `POST /api/align`: Aligns phonemes to existing audio (for pre-recorded audio)
@@ -76,15 +96,20 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Flow
 
+**NEW Enhanced Flow**:
 1. User inputs text in Controls component
 2. Frontend sends POST request to `/api/chat`
-3. Backend forwards to Ollama for LLM response
-4. Animation planner analyzes response text and generates animation commands
-5. Backend optionally calls TTS service to generate audio and phoneme timeline
-6. Complete response (text, animation plan, audio URL, phonemes) returns to frontend
-7. Frontend plays audio via Web Audio API
-8. Avatar controller synchronizes blendshape animations with audio using phoneme timeline
-9. Layered animations (gestures, expressions, head movements) execute based on animation commands
+3. Backend forwards to Ollama for LLM response text
+4. **NEW** - Animation planner calls Ollama again to generate structured JSON animation payload
+5. Backend validates animation against available 19 FBX files
+6. Backend calls TTS service to generate phonemes
+7. Complete response returns: `{ reply, animationPayload: {emotion, animation, viewMode, intensity}, tts: {phonemes} }`
+8. Frontend applies animation payload:
+   - EmotionEngine sets facial emotion
+   - AnimationLoader plays body animation
+   - ViewModeController adjusts camera
+9. Frontend plays speech with phoneme lip-sync
+10. All layers blend: body animation + facial emotion + lip-sync + camera movement
 
 ### Fine-tuning Infrastructure
 
@@ -112,8 +137,9 @@ The fine-tuning approach would train the LLM to output structured JSON animation
 
 - **Three.js**: 3D rendering engine
 - **@react-three/fiber**: React renderer for Three.js
-- **@react-three/drei**: Helper components for common 3D patterns
+- **@react-three/drei**: Helper components for common 3D patterns (OrbitControls)
 - **@pixiv/three-vrm**: VRM model loader and animation support
+- **FBXLoader** (three/examples/jsm): Loads Mixamo FBX animations
 
 ### Backend Libraries
 
@@ -134,6 +160,13 @@ The fine-tuning approach would train the LLM to output structured JSON animation
 ### Asset Requirements
 
 - **VRM Model**: 3D avatar model in VRM format (stored in `client/public/avatar.vrm`)
+- **FBX Animations**: 19 Mixamo animations in `client/public/animations/` directory
+  - Basic: idle.fbx, breathing_idle.fbx, happy_idle.fbx
+  - Actions: backflip.fbx, blow_a_kiss.fbx, catwalk_walk.fbx, cocky_head_turn.fbx
+  - Dancing: dancing_twerk.fbx
+  - Movements: jumping_down.fbx, pointing_gesture.fbx, praying.fbx, quick_formal_bow.fbx
+  - Gestures: standing_thumbs_up.fbx, victory.fbx, waving.fbx
+  - Poses: ass_bumb_female_standing_pose.fbx, female_crouch_pose.fbx, female_laying_pose.fbx, female_standing_pose_bold.fbx
 - **Audio Files**: Generated or pre-recorded audio files served from `server/media/` directory
 
 ### Environment Configuration
