@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -13,6 +13,7 @@ interface Props {
 function Avatar({ onLoad }: Props) {
   const vrmRef = useRef<VRM | null>(null);
   const controllerRef = useRef<AvatarController | null>(null);
+  const [isReady, setIsReady] = useState(false);
   const { camera } = useThree();
 
   useEffect(() => {
@@ -57,6 +58,8 @@ function Avatar({ onLoad }: Props) {
         
         console.log('✅ Procedural animation system ready!');
         
+        // Trigger API exposure and onLoad callback
+        setIsReady(true);
         if (onLoad) onLoad();
       },
       (progress) => {
@@ -85,49 +88,71 @@ function Avatar({ onLoad }: Props) {
     }
   });
 
-  // Expose global API for external control
+  // Expose global API with proper lifecycle management
   useEffect(() => {
-    if (!controllerRef.current) {
+    if (!isReady || !controllerRef.current || !vrmRef.current) {
       return;
     }
 
+    console.log('🎮 Exposing Avatar API to window.avatarAPI');
+
     (window as any).avatarAPI = {
-      // Execute animation command (LLM-driven)
       executeCommand: (command: AnimationCommand) => {
-        controllerRef.current?.executeAnimationCommand(command);
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.executeAnimationCommand(command);
       },
-      
-      // Direct animation control
       playAction: (action: ActionType) => {
-        controllerRef.current?.playAction(action);
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.playAction(action);
       },
       setEmotion: (emotion: Emotion, intensity?: number) => {
-        controllerRef.current?.setEmotion(emotion, intensity);
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.setEmotion(emotion, intensity);
       },
       setViewMode: (mode: ViewMode) => {
-        controllerRef.current?.setViewMode(mode);
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.setViewMode(mode);
       },
       lookAtCamera: () => {
-        controllerRef.current?.lookAtCamera();
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.lookAtCamera();
       },
       reset: () => {
-        controllerRef.current?.reset();
+        if (!controllerRef.current) {
+          console.warn('⚠️ Avatar controller not ready');
+          return;
+        }
+        controllerRef.current.reset();
       },
-      
-      // Status
       getStatus: () => {
-        return controllerRef.current?.getStatus() || {};
+        if (!controllerRef.current) {
+          return {};
+        }
+        return controllerRef.current.getStatus();
       },
     };
 
-    console.log('🎮 Procedural Avatar API exposed to window.avatarAPI');
-    console.log('Example usage:');
-    console.log('  avatarAPI.playAction("wave")');
-    console.log('  avatarAPI.setEmotion("happy", 0.8)');
-    console.log('  avatarAPI.setViewMode("head-only")');
-    console.log('  avatarAPI.executeCommand({ emotion: "happy", action: "wave", viewMode: "half-body" })');
-    console.log('  avatarAPI.getStatus()');
-  }, []);
+    // Cleanup on unmount
+    return () => {
+      console.log('🧹 Cleaning up Avatar API');
+      delete (window as any).avatarAPI;
+    };
+  }, [isReady]);
 
   return vrmRef.current ? <primitive object={vrmRef.current.scene} /> : null;
 }
